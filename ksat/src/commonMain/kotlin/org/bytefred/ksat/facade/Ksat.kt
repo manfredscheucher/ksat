@@ -51,4 +51,7 @@ class Ksat(
     override fun solve(assumptions: IntArray): SatResult = delegate.solve(assumptions)
 
     override fun valueOf(v: Int): Boolean = delegate.valueOf(v)
+
+    /** Failed-assumption core after UNSAT under assumptions; see [SatSolver.failed]. */
+    override fun failed(lit: Int): Boolean = delegate.failed(lit)
 }
