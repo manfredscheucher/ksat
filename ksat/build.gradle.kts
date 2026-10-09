@@ -1,13 +1,18 @@
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
-    alias(libs.plugins.androidLibrary)
+    alias(libs.plugins.androidKmpLibrary)
 }
 
 // The facade module: a single `Ksat` entry point that picks one of the ported
 // solvers at runtime (MiniSat / CaDiCaL / kissat), PySAT-style. Depends on every
 // solver module, so it must NOT be depended on by them (ksat-common stays the base).
 kotlin {
-    androidTarget()
+    androidLibrary {
+        namespace = "org.bytefred.ksat.facade"
+        compileSdk = libs.versions.android.compileSdk.get().toInt()
+        minSdk = libs.versions.android.minSdk.get().toInt()
+        withHostTest {}
+    }
     jvm()
 
     js { browser(); nodejs() }
@@ -44,13 +49,5 @@ kotlin {
                 implementation(libs.kotlin.test)
             }
         }
-    }
-}
-
-android {
-    namespace = "org.bytefred.ksat.facade"
-    compileSdk = libs.versions.android.compileSdk.get().toInt()
-    defaultConfig {
-        minSdk = libs.versions.android.minSdk.get().toInt()
     }
 }

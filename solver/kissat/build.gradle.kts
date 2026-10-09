@@ -1,13 +1,18 @@
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
-    alias(libs.plugins.androidLibrary)
+    alias(libs.plugins.androidKmpLibrary)
 }
 
 // The Kotlin kissat port lives in the kissat/port submodule; only the port SOURCE is pulled in
 // here (via commonMain srcDirs). The shadow tests, sanity tests and the runtime benchmark
 // stay in THIS repo (they need shadow/ and ksat-common). Depends on the one ksat-common.
 kotlin {
-    androidTarget()
+    androidLibrary {
+        namespace = "org.bytefred.ksat.kissat"
+        compileSdk = libs.versions.android.compileSdk.get().toInt()
+        minSdk = libs.versions.android.minSdk.get().toInt()
+        withHostTest {}
+    }
     jvm()
 
     js { browser(); nodejs() }
@@ -46,14 +51,6 @@ kotlin {
                 implementation(libs.kotlin.test)
             }
         }
-    }
-}
-
-android {
-    namespace = "org.bytefred.ksat.kissat"
-    compileSdk = libs.versions.android.compileSdk.get().toInt()
-    defaultConfig {
-        minSdk = libs.versions.android.minSdk.get().toInt()
     }
 }
 
