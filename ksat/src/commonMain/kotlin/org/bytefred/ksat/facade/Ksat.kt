@@ -2,6 +2,9 @@ package org.bytefred.ksat.facade
 
 import org.bytefred.ksat.ExternalPropagation
 import org.bytefred.ksat.ExternalPropagator
+import org.bytefred.ksat.FixedAssignmentListener
+import org.bytefred.ksat.FixedListening
+import org.bytefred.ksat.ForcedPhases
 import org.bytefred.ksat.SatResult
 import org.bytefred.ksat.SatSolver
 import org.bytefred.ksat.cadical.CaDiCaL
@@ -34,7 +37,7 @@ enum class Solver { MICROSAT, MINISAT, CADICAL, KISSAT }
 class Ksat(
     val solver: Solver,
     numVars: Int,
-) : SatSolver, ExternalPropagation {
+) : SatSolver, ExternalPropagation, FixedListening, ForcedPhases {
 
     private val delegate: SatSolver = when (solver) {
         Solver.MICROSAT -> MicroSat(numVars)
@@ -70,4 +73,22 @@ class Ksat(
     override fun resetObservedVars() = host().resetObservedVars()
     override fun isDecision(lit: Int): Boolean = host().isDecision(lit)
     override fun forceBacktrack(newLevel: Int) = host().forceBacktrack(newLevel)
+
+    // ---- fixed-assignment listener (only CaDiCaL) ----
+
+    private fun fixedHost(): FixedListening =
+        delegate as? FixedListening
+            ?: throw UnsupportedOperationException("solver $solver does not support fixed-assignment listeners")
+
+    override fun connectFixedListener(listener: FixedAssignmentListener) = fixedHost().connectFixedListener(listener)
+    override fun disconnectFixedListener() = fixedHost().disconnectFixedListener()
+
+    // ---- forced decision phases (only CaDiCaL) ----
+
+    private fun phaseHost(): ForcedPhases =
+        delegate as? ForcedPhases
+            ?: throw UnsupportedOperationException("solver $solver does not support forced phases")
+
+    override fun phase(lit: Int) = phaseHost().phase(lit)
+    override fun unphase(lit: Int) = phaseHost().unphase(lit)
 }

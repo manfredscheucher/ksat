@@ -2,6 +2,7 @@ package org.bytefred.ksat.minisat
 
 import org.bytefred.ksat.DimacsCnf
 import org.bytefred.ksat.SatResult
+import org.junit.AssumptionViolatedException
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -32,28 +33,46 @@ import kotlin.test.fail
  */
 class ShadowTraceFilesTest {
 
-    private val shadowDir: File? by lazy { locateShadowDir() }
-
+    /** `ksat-extra/shadow` (an optional submodule), found by walking up from the working dir. */
     private fun locateShadowDir(): File? {
         var dir: File? = File(System.getProperty("user.dir")).absoluteFile
         while (dir != null) {
             val candidate = File(dir, "ksat-extra/shadow")
-            if (File(candidate, "cnf").isDirectory && File(candidate, "golden-minisat").isDirectory) {
-                return candidate
-            }
+            if (candidate.isDirectory) return candidate
             dir = dir.parentFile
         }
         return null
     }
 
+    /** The shadow dir, provided ksat-extra is checked out and its golden traces are generated.
+     *  Otherwise the test is SKIPPED (a JUnit assumption, reported as skipped), not failed:
+     *  ksat-extra is optional and the golden traces are generated artifacts. */
+    private fun shadowDir(): File {
+        val shadow = locateShadowDir() ?: skip(
+            "no ksat-extra/shadow found",
+            "`git submodule update --init --checkout ksat-extra`, then `bash $REGEN`",
+        )
+        val goldDir = File(shadow, GOLDEN)
+        if (goldDir.listFiles { f -> f.name.endsWith(".trace") }.isNullOrEmpty()) {
+            skip("no golden traces in $goldDir", "`bash $REGEN`")
+        }
+        return shadow
+    }
+
+    /** Every shadow/cnf/<name>.cnf (minus [BENCHMARK_ONLY]) paired with its golden trace.
+     *  The golden dir exists and is non-empty here, so a missing CNF dir or a CNF without its
+     *  trace is an inconsistent half-generated state and fails the test. */
     private fun cases(shadow: File): List<Pair<File, File>> {
         val cnfDir = File(shadow, "cnf")
-        val goldDir = File(shadow, "golden-minisat")
-        return (cnfDir.listFiles { f -> f.name.endsWith(".cnf") && f.nameWithoutExtension !in BENCHMARK_ONLY }?.sortedBy { it.name } ?: emptyList())
-            .mapNotNull { cnf ->
-                val gold = File(goldDir, cnf.nameWithoutExtension + ".trace")
-                if (gold.isFile) cnf to gold else null
-            }
+        val goldDir = File(shadow, GOLDEN)
+        val cnfs = cnfDir.listFiles { f -> f.name.endsWith(".cnf") && f.nameWithoutExtension !in BENCHMARK_ONLY }
+            ?.sortedBy { it.name }
+            ?: fail("$TAG missing $cnfDir (part of ksat-extra; is the submodule checkout complete?)")
+        if (cnfs.isEmpty()) fail("$TAG no .cnf files in $cnfDir")
+        val cases = cnfs.map { cnf -> cnf to File(goldDir, cnf.nameWithoutExtension + ".trace") }
+        val missing = cases.filter { !it.second.isFile }.map { it.first.name }
+        if (missing.isNotEmpty()) fail("$TAG no golden trace in $goldDir for $missing; run `bash $REGEN`")
+        return cases
     }
 
     /** Reduce a full trace to its structural (L2) skeleton: keep DECIDE/CONFLICT/RESTART/
@@ -104,15 +123,8 @@ class ShadowTraceFilesTest {
 
     @Test
     fun allGoldenTracesMatch() {
-        val shadow = shadowDir ?: run {
-            println("[shadow-minisat] no shadow/golden-minisat dir; run shadow/tools/regen_golden_minisat.sh -- skipping")
-            return
-        }
+        val shadow = shadowDir()
         val cases = cases(shadow)
-        if (cases.isEmpty()) {
-            println("[shadow-minisat] no golden traces found; run shadow/tools/regen_golden_minisat.sh -- skipping")
-            return
-        }
         val levels = LinkedHashMap<String, String>()
         for ((cnf, gold) in cases) levels[cnf.name] = runOne(cnf, gold)
         println("[shadow-minisat] per-instance level achieved:")
@@ -138,13 +150,12 @@ class ShadowTraceFilesTest {
     }
 
     /** Guard that at least one instance actually drives RESTART and REDUCE, so those
-     *  hand-translated MiniSat paths stay trace-covered. Only enforced when golden
-     *  traces exist. */
+     *  hand-translated MiniSat paths stay trace-covered. Skipped when the golden
+     *  traces are not generated. */
     @Test
     fun restartReducePathsAreCovered() {
-        val shadow = shadowDir ?: return
+        val shadow = shadowDir()
         val cases = cases(shadow)
-        if (cases.isEmpty()) return
         var sawRestart = false
         var sawReduce = false
         for ((_, gold) in cases) {
@@ -157,6 +168,19 @@ class ShadowTraceFilesTest {
     }
 
     private companion object {
+        const val TAG = "[shadow-minisat]"
+        const val GOLDEN = "golden-minisat"
+        const val REGEN = "ksat-extra/shadow/tools/regen_golden_minisat.sh"
+
+        /** Skips the running test (JUnit assumption; Gradle reports it as SKIPPED). The reason
+         *  goes to stderr too, which the jvmTest task logs, since Gradle doesn't show it. */
+        fun skip(reason: String, steps: String): Nothing {
+            val msg = "$TAG SKIPPED: $reason. These are optional trace-comparison tests (ksat-extra); " +
+                "to run them: $steps."
+            System.err.println(msg)
+            throw AssumptionViolatedException(msg)
+        }
+
         // -Dbigtrace enables the huge php_10_9 comparison. A bare -Dbigtrace (empty value) is ON;
         // "false"/"0"/"no"/"off" (or absent) leave it off.
         private fun bigtraceEnabled(): Boolean {

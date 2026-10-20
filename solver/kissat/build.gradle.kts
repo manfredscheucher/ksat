@@ -1,3 +1,5 @@
+import org.gradle.api.tasks.testing.logging.TestExceptionFormat
+
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
     alias(libs.plugins.androidKmpLibrary)
@@ -59,6 +61,13 @@ kotlin {
 // that flag to the test JVM and give it an 8 GB heap so readLines() of that trace fits.
 //   ./gradlew :kissat:jvmTest -Dbigtrace
 tasks.withType<org.jetbrains.kotlin.gradle.targets.jvm.tasks.KotlinJvmTest>().configureEach {
+    // Show skipped/failed tests in a normal run: the optional shadow trace tests (ksat-extra)
+    // report a visible SKIPPED (with its reason on stderr) instead of passing silently.
+    testLogging {
+        events("skipped", "failed", "standard_error")
+        exceptionFormat = TestExceptionFormat.FULL
+    }
+
     // Enabled by -Dbigtrace/-Pbigtrace. A bare flag (empty value) is ON; "false"/"0"/"no"/"off"
     // (or absent) leave it OFF.
     fun truthy(v: String?) = v != null && v.lowercase() !in setOf("false", "0", "no", "off")
