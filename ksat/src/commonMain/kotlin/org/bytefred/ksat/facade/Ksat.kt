@@ -1,5 +1,7 @@
 package org.bytefred.ksat.facade
 
+import org.bytefred.ksat.ExternalPropagation
+import org.bytefred.ksat.ExternalPropagator
 import org.bytefred.ksat.SatResult
 import org.bytefred.ksat.SatSolver
 import org.bytefred.ksat.cadical.CaDiCaL
@@ -32,7 +34,7 @@ enum class Solver { MICROSAT, MINISAT, CADICAL, KISSAT }
 class Ksat(
     val solver: Solver,
     numVars: Int,
-) : SatSolver {
+) : SatSolver, ExternalPropagation {
 
     private val delegate: SatSolver = when (solver) {
         Solver.MICROSAT -> MicroSat(numVars)
@@ -54,4 +56,18 @@ class Ksat(
 
     /** Failed-assumption core after UNSAT under assumptions; see [SatSolver.failed]. */
     override fun failed(lit: Int): Boolean = delegate.failed(lit)
+
+    // ---- IPASIR-UP (only for ports that host an external propagator, i.e. CaDiCaL) ----
+
+    private fun host(): ExternalPropagation =
+        delegate as? ExternalPropagation
+            ?: throw UnsupportedOperationException("solver $solver does not support IPASIR-UP external propagators")
+
+    override fun connectExternalPropagator(propagator: ExternalPropagator) = host().connectExternalPropagator(propagator)
+    override fun disconnectExternalPropagator() = host().disconnectExternalPropagator()
+    override fun addObservedVar(v: Int) = host().addObservedVar(v)
+    override fun removeObservedVar(v: Int) = host().removeObservedVar(v)
+    override fun resetObservedVars() = host().resetObservedVars()
+    override fun isDecision(lit: Int): Boolean = host().isDecision(lit)
+    override fun forceBacktrack(newLevel: Int) = host().forceBacktrack(newLevel)
 }

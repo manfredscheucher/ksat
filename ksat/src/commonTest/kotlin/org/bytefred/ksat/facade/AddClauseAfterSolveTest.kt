@@ -1,6 +1,7 @@
 package org.bytefred.ksat.facade
 
 import org.bytefred.ksat.SatResult
+import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -41,31 +42,35 @@ class AddClauseAfterSolveTest {
         }
     }
 
-    // A non-trivial formula where the first SAT leaves a level>1 trail, so a re-solve over a
-    // stale high-level trail (the old hack) differs from upstream's root restore. Enumerate all
-    // models by blocking and check the count against a fresh-solver reference.
+    // A non-trivial formula where the first SAT leaves a level>1 trail, so the re-solve must
+    // restore to the root first. Enumerate all models by blocking.
     //   (x1 OR x2 OR x3) AND (-x1 OR -x2) AND (-x2 OR -x3)
+    // has exactly the models {T,F,F}, {F,T,F}, {F,F,T}, {T,F,T}.
     private val tri = listOf(intArrayOf(1, 2, 3), intArrayOf(-1, -2), intArrayOf(-2, -3))
+    private val triModels = setOf(
+        listOf(true, false, false), listOf(false, true, false),
+        listOf(false, false, true), listOf(true, false, true),
+    )
 
-    private fun enumerateCount(s: Solver, nVars: Int, cnf: List<IntArray>): Int {
+    private fun enumerateModelSet(s: Solver, nVars: Int, cnf: List<IntArray>): List<List<Boolean>> {
         val k = Ksat(s, numVars = nVars)
         for (c in cnf) k.addClause(c)
-        var n = 0
+        val models = ArrayList<List<Boolean>>()
         while (k.solve() == SatResult.SAT) {
             val model = (1..nVars).map { k.valueOf(it) }
+            models += model
             k.addClause(IntArray(nVars) { i -> if (model[i]) -(i + 1) else (i + 1) })
-            if (++n > 64) break
+            if (models.size > 64) break
         }
-        return n
+        return models
     }
 
     @Test
     fun enumeratesNonTrivialFormulaAfterSolve() {
-        // reference via MINISAT (add-after-solve known-good) to pin the true model count
-        val expected = enumerateCount(Solver.MINISAT, 3, tri)
-        for (s in listOf(Solver.CADICAL, Solver.KISSAT)) {
-            assertEquals(expected, enumerateCount(s, 3, tri),
-                "solver $s: model count on re-solve must match the reference")
+        for (s in solvers) {
+            val models = enumerateModelSet(s, 3, tri)
+            assertEquals(4, models.size, "solver $s: 4 models expected on re-solve")
+            assertEquals(triModels, models.toSet(), "solver $s: wrong model set on re-solve")
         }
     }
 
@@ -106,7 +111,7 @@ class AddClauseAfterSolveTest {
             // both models must satisfy the CNF (not necessarily identical, but valid)
             for (model in listOf(m1, m2))
                 for (c in tri)
-                    assertEquals(true, c.any { lit -> model[kotlin.math.abs(lit) - 1] == (lit > 0) },
+                    assertEquals(true, c.any { lit -> model[abs(lit) - 1] == (lit > 0) },
                         "solver $s: model $model must satisfy clause ${c.toList()}")
         }
     }

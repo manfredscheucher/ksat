@@ -24,9 +24,8 @@ import org.bytefred.ksat.SatResult
  *  - `false` (default): a FRESH solver each round replaying the CNF + all prior blocking
  *    clauses. Correct for ALL solvers; O(models²) in added clauses — fine for modest counts.
  *  - `true`: keep ONE solver and add each blocking clause to it (O(models), keeps learned
- *    clauses). Only [Solver.MINISAT] supports adding clauses after a solve correctly, so
- *    `incremental = true` with any other solver throws. (CaDiCaL and kissat are partial core
- *    ports whose post-solve clause addition doesn't take; see the port TODO.)
+ *    clauses). Needs add-clause-after-solve, which MINISAT, CADICAL and KISSAT support;
+ *    `incremental = true` with [Solver.MICROSAT] throws.
  */
 fun enumerateModels(
     solver: Solver,
@@ -35,8 +34,8 @@ fun enumerateModels(
     assumptions: IntArray = IntArray(0),
     incremental: Boolean = false,
 ): Sequence<List<Boolean>> {
-    require(!(incremental && solver != Solver.MINISAT)) {
-        "incremental enumeration is only supported for MINISAT (got $solver); use incremental = false"
+    require(!(incremental && solver == Solver.MICROSAT)) {
+        "incremental enumeration is not supported for MICROSAT; use incremental = false"
     }
     return if (incremental) incrementalModels(solver, numVars, cnf, assumptions)
     else freshSolverModels(solver, numVars, cnf, assumptions)
@@ -61,7 +60,7 @@ private fun freshSolverModels(
     }
 }
 
-/** Single warm solver, blocking clause added after each solve. MINISAT only. */
+/** Single warm solver, blocking clause added after each solve. Not for MICROSAT. */
 private fun incrementalModels(
     solver: Solver,
     numVars: Int,

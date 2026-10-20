@@ -27,28 +27,39 @@ class EnumerateModelsTest {
     }
 
     @Test
-    fun incrementalEnumeratesForMinisat() {
-        val models = enumerateModels(Solver.MINISAT, numVars = 2, cnf = xor, incremental = true)
-            .take(8).toList()
-        assertEquals(2, models.size, "incremental MINISAT: XOR should have exactly 2 models")
-        assertEquals(xorModels, models.toSet())
+    fun incrementalEnumeratesForAddAfterSolveSolvers() {
+        for (s in listOf(Solver.MINISAT, Solver.CADICAL, Solver.KISSAT)) {
+            val models = enumerateModels(s, numVars = 2, cnf = xor, incremental = true)
+                .take(8).toList()
+            assertEquals(2, models.size, "incremental $s: XOR should have exactly 2 models")
+            assertEquals(xorModels, models.toSet(), "incremental $s: wrong model set")
+        }
     }
 
     @Test
-    fun incrementalThrowsForNonMinisat() {
-        for (s in listOf(Solver.MICROSAT, Solver.CADICAL, Solver.KISSAT)) {
-            assertFailsWith<IllegalArgumentException>("incremental must throw for $s") {
-                // the require() runs eagerly, before the sequence is iterated
-                enumerateModels(s, numVars = 2, cnf = xor, incremental = true)
-            }
+    fun incrementalThrowsForMicrosat() {
+        assertFailsWith<IllegalArgumentException>("incremental must throw for MICROSAT") {
+            // the require() runs eagerly, before the sequence is iterated
+            enumerateModels(Solver.MICROSAT, numVars = 2, cnf = xor, incremental = true)
         }
     }
 
     @Test
     fun enumeratesUnderAssumptions() {
         // assume x1 = true -> only the {x1, -x2} model remains
-        val models = enumerateModels(Solver.MINISAT, numVars = 2, cnf = xor, assumptions = intArrayOf(1))
-            .take(8).toList()
-        assertEquals(listOf(listOf(true, false)), models, "assuming x1 leaves exactly one model")
+        for (s in listOf(Solver.MINISAT, Solver.CADICAL, Solver.KISSAT)) {
+            for (incremental in listOf(false, true)) {
+                val models = enumerateModels(s, numVars = 2, cnf = xor, assumptions = intArrayOf(1), incremental = incremental)
+                    .take(8).toList()
+                assertEquals(listOf(listOf(true, false)), models, "$s (incremental=$incremental): assuming x1 leaves exactly one model")
+            }
+        }
+    }
+
+    @Test
+    fun microsatRejectsAssumptions() {
+        assertFailsWith<IllegalArgumentException>("MICROSAT has no assumptions path") {
+            enumerateModels(Solver.MICROSAT, numVars = 2, cnf = xor, assumptions = intArrayOf(1)).toList()
+        }
     }
 }
