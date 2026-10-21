@@ -77,6 +77,12 @@ tasks.withType<org.jetbrains.kotlin.gradle.targets.jvm.tasks.KotlinJvmTest>().co
         systemProperty("bigtrace", "1")
         maxHeapSize = "8g"
     }
+
+    // Filters of the full-port shadow test (FullShadowTraceTest), e.g.
+    //   ./gradlew :cadical:jvmTest --tests '*FullShadowTraceTest*' -Dfullshadow.only=php_3_2 -Dfullshadow.configs=plain
+    for (name in listOf("fullshadow.only", "fullshadow.configs")) {
+        providers.systemProperty(name).orNull?.let { systemProperty(name, it) }
+    }
 }
 
 // Runtime benchmark on the shadow CNFs (JVM). Pair with shadow/tools to compare against C.
