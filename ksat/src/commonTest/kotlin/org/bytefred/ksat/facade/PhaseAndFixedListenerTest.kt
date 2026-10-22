@@ -54,16 +54,13 @@ class PhaseAndFixedListenerTest {
     // ------------------------------------------------------------------ phase
 
     @Test
-    fun forcedPhasesThatFormAModelAreTheModel() {
-        // PORT-CONFIGURATION behaviour, not an upstream guarantee: upstream only documents "force
-        // the default decision phase". It holds here because this port has no lucky phases, local
-        // search, rephasing or elimination; upstream's default opts.lucky=1 tries lucky
-        // assignments first and may return another model.
-        // decide.cpp decide_phase reads phases.forced before target/saved phases, so every
-        // decision takes the forced value. If the forced values are a model M, unit propagation
-        // under any partial assignment contained in M only implies literals of M (no conflict),
-        // so the solve returns exactly M. Every model is forced in turn on one instance
-        // (incremental: the forced phase also overrides the saved phases of the previous solve).
+    fun forcedPhasesKeepEverySolveCorrect() {
+        // Upstream only documents "force the default decision phase" (cadical.hpp phase). With the
+        // default options CaDiCaL tries lucky assignments before any decision (lucky.cpp), so the
+        // model need not equal the forced phases (checked against upstream 2.1.3: with lucky=1 most
+        // forced models are not returned, with lucky=0 all are). What every solve must guarantee:
+        // forcing phases never changes the verdict, and the model satisfies the formula. The exact
+        // step-by-step behaviour is pinned by the full-port shadow tests against upstream.
         for (seed in 1..5) {
             val n = 6
             val clauses = random3Cnf(seed, n, 10)
@@ -74,22 +71,23 @@ class PhaseAndFixedListenerTest {
             for (m in ms) {
                 for (v in 1..n) k.phase(if ((m shr (v - 1)) and 1 == 1) v else -v)
                 assertEquals(SatResult.SAT, k.solve(), "$solver seed $seed: SAT")
-                assertEquals(m, modelOf(k, n), "$solver seed $seed: model must equal the forced phases")
+                assertTrue(modelOf(k, n) in ms, "$solver seed $seed: model must satisfy the formula")
             }
         }
     }
 
     @Test
-    fun forcedPhaseOfFreshVariableCreatesItAndIsUsed() {
-        // External::phase internalizes the literal, so a variable no clause mentions is created
-        // and decided with its forced phase. The value of the fresh variable is PORT-CONFIGURATION
-        // behaviour (no lucky phases / local search here, see above).
+    fun forcedPhaseOfFreshVariableCreatesIt() {
+        // External::phase internalizes the literal, so a variable no clause mentions is created.
+        // Its value is not pinned: upstream's lucky phases (default on) satisfy (1 ∨ 2) by setting
+        // all variables true before the forced phase of 3 is ever used (upstream 2.1.3 returns
+        // val(3) = 3 for both phase(3) and phase(-3)).
         for (lit in intArrayOf(3, -3)) {
             val k = Ksat(solver, numVars = 2)
             k.addClause(intArrayOf(1, 2))
             k.phase(lit)
+            assertTrue(k.numVars >= 3, "$solver: phase($lit) creates variable 3")
             assertEquals(SatResult.SAT, k.solve(), "$solver: SAT")
-            assertEquals(lit > 0, k.valueOf(3), "$solver: fresh var 3 takes forced phase $lit")
         }
     }
 

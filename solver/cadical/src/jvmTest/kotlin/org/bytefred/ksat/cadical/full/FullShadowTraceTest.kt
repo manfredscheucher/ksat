@@ -26,8 +26,9 @@ import kotlin.test.fail
  * Independently of the trace, the verdict must match the golden RESULT and on SAT the
  * MODEL must satisfy the CNF.
  *
- * On a mismatch the actual trace (up to 200 lines past the first difference) is written to
- * `solver/cadical/build/full-shadow/<config>/<name>.trace` for inspection. Filters (forwarded by build.gradle.kts):
+ * The golden trace is streamed and compared line by line (bounded memory). On a mismatch only the
+ * context report (+-5 lines, a few KB) is written to
+ * `solver/cadical/build/full-shadow/<config>/<name>.diff.txt`; the trace itself is never stored. Filters (forwarded by build.gradle.kts):
  *   -Dfullshadow.only=php_3_2,sat_small   only these CNFs
  *   -Dfullshadow.configs=plain            only these configs
  *   -Dbigtrace                            include php_10_9 (needs BIG=1 goldens)
@@ -49,27 +50,62 @@ class FullShadowTraceTest {
             ?.takeIf { it.isNotEmpty() }
 
     private class Outcome(val name: String, val config: String, val level: String, val millis: Long,
-                          val lines: Int, val detail: String?)
+                          val lines: Long, val detail: String?)
 
-    /** Thrown from the sink when the port produces far more lines than the golden trace. */
-    private class TooLong : RuntimeException()
+    /** Thrown from the sink to stop the port once enough context after a difference is collected. */
+    private class Stop : RuntimeException()
 
+    /**
+     * Streams the golden trace and compares each line of the port as it is produced, so memory
+     * stays bounded (php_9_8 has 1.4M lines; holding both traces does not fit a 512 MB test heap).
+     * Context: a ring buffer of the last [CONTEXT] equal lines plus up to [CONTEXT] lines after the
+     * first difference from each side.
+     */
     private fun runOne(cnfFile: File, goldFile: File, config: String, outDir: File): Outcome {
         val name = cnfFile.nameWithoutExtension
-        val expected = goldFile.readLines().filter { it.isNotEmpty() }
         val cnfText = cnfFile.readText()
-        val actual = ArrayList<String>(expected.size + 16)
-        val maxLines = expected.size * 2 + 1000
+        val gold = goldFile.bufferedReader()
+        // Empty lines are skipped (none are expected; build_and_trace.sh keeps them).
+        fun nextGold(): String? {
+            while (true) {
+                val l = gold.readLine() ?: return null
+                if (l.isNotEmpty()) return l
+            }
+        }
+
+        val ring = ArrayDeque<String>()
+        var lineNo = 0L
+        var diffAt = -1L
+        var gDiff: String? = null
+        var kDiff: String? = null
+        val kAfter = ArrayList<String>()
+        var lastResult: String? = null
+        var lastModel: String? = null
+
+        val sink: (String) -> Unit = sink@{ line ->
+            if (diffAt >= 0) {
+                kAfter += line
+                if (kAfter.size >= CONTEXT) throw Stop()
+                return@sink
+            }
+            val g = nextGold()
+            lineNo++
+            if (g != line) {
+                diffAt = lineNo; gDiff = g; kDiff = line
+                return@sink
+            }
+            if (line.startsWith("RESULT ")) lastResult = line
+            if (line.startsWith("MODEL ")) lastModel = line
+            ring.addLast(line)
+            if (ring.size > CONTEXT) ring.removeFirst()
+        }
 
         val exec = Executors.newSingleThreadExecutor { r -> Thread(r).apply { isDaemon = true } }
         val t0 = System.nanoTime()
         var error: Throwable? = null
         try {
             exec.submit<Int> {
-                runShadow(cnfText, config, emptyList(), null) { line ->
-                    if (actual.size >= maxLines) throw TooLong()
-                    actual.add(line)
-                }
+                runShadow(cnfText, config, emptyList(), null, sink = sink)
             }.get(TIMEOUT_SECONDS, TimeUnit.SECONDS)
         } catch (e: TimeoutException) {
             error = e
@@ -79,60 +115,59 @@ class FullShadowTraceTest {
             exec.shutdownNow()
         }
         val millis = (System.nanoTime() - t0) / 1_000_000
+        if (error is Stop) error = null
+
+        // The port ended without a difference: the golden trace must end here too.
+        if (error == null && diffAt < 0) {
+            val g = nextGold()
+            if (g != null) { diffAt = lineNo + 1; gDiff = g; kDiff = null }
+        }
+        val gAfter = ArrayList<String>()
+        if (diffAt >= 0 && gDiff != null)
+            while (gAfter.size < CONTEXT) gAfter += nextGold() ?: break
+        gold.close()
 
         val errText = when (error) {
             null -> null
             is TimeoutException -> "TIMEOUT after ${TIMEOUT_SECONDS}s"
-            is TooLong -> "trace exceeded $maxLines lines (golden has ${expected.size})"
-            else -> "EXCEPTION ${error.javaClass.simpleName}: ${error.message}\n" +
+            else -> "EXCEPTION ${error.javaClass.name}: ${error.message}\n" +
                 error.stackTrace.take(12).joinToString("\n") { "      at $it" }
         }
 
-        // Verdict + model, independent of the trace comparison.
-        val verdictProblems = ArrayList<String>()
-        if (error == null) {
-            val goldResult = expected.lastOrNull { it.startsWith("RESULT ") }
-            val result = actual.lastOrNull { it.startsWith("RESULT ") }
-            if (goldResult != result) verdictProblems += "verdict: expected '$goldResult', got '$result'"
-            if (result == "RESULT SAT") {
-                val model = actual.lastOrNull { it.startsWith("MODEL ") }
-                if (model == null) verdictProblems += "SAT without MODEL line"
+        // Verdict + model (on a full match the RESULT/MODEL lines are the golden ones).
+        val problems = ArrayList<String>()
+        if (error == null && diffAt < 0) {
+            val model = lastModel
+            if (lastResult == "RESULT SAT") {
+                if (model == null) problems += "SAT without MODEL line"
                 else {
-                    val lits = model.removePrefix("MODEL ").trim().split(' ').map { it.toInt() }.filter { it != 0 }
                     val values = HashMap<Int, Boolean>()
-                    for (l in lits) values[kotlin.math.abs(l)] = l > 0
-                    val cnf = DimacsCnf.parse(cnfText)
-                    if (!cnf.isSatisfiedBy { v -> values[v] ?: false })
-                        verdictProblems += "MODEL does not satisfy the CNF"
+                    for (l in model.removePrefix("MODEL ").trim().split(' ').map { it.toInt() }.filter { it != 0 })
+                        values[kotlin.math.abs(l)] = l > 0
+                    if (!DimacsCnf.parse(cnfText).isSatisfiedBy { v -> values[v] ?: false })
+                        problems += "MODEL does not satisfy the CNF"
                 }
             }
+            if (problems.isEmpty()) return Outcome(name, config, "L1", millis, lineNo, null)
         }
 
-        val first = (0 until minOf(expected.size, actual.size)).firstOrNull { expected[it] != actual[it] }
-            ?: if (expected.size == actual.size) null else minOf(expected.size, actual.size)
-        if (first == null && error == null && verdictProblems.isEmpty())
-            return Outcome(name, config, "L1", millis, actual.size, null)
-
-        val sb = StringBuilder()
-        sb.append("[$config/$name] ")
+        val sb = StringBuilder("[$config/$name] ")
         if (errText != null) sb.append(errText).append('\n')
-        for (p in verdictProblems) sb.append(p).append('\n')
-        if (first != null) {
-            sb.append("first differing line ${first + 1} (golden ${expected.size} lines, actual ${actual.size})\n")
-            fun ctx(label: String, lines: List<String>) {
-                sb.append("  --- $label\n")
-                for (i in maxOf(0, first - 5)..minOf(lines.size - 1, first + 5))
-                    sb.append(if (i == first) "  >" else "   ").append("%7d  ".format(i + 1)).append(lines[i]).append('\n')
-            }
-            ctx("golden", expected)
-            ctx("kotlin", actual)
+        for (p in problems) sb.append(p).append('\n')
+        if (diffAt >= 0) {
+            sb.append("first differing line $diffAt\n")
+            var i = diffAt - ring.size
+            for (l in ring) sb.append("         %9d  ".format(i++)).append(l).append('\n')
+            sb.append("  golden > %9d  ".format(diffAt)).append(gDiff ?: "<end of golden trace>").append('\n')
+            for ((k, l) in gAfter.withIndex()) sb.append("  golden   %9d  ".format(diffAt + 1 + k)).append(l).append('\n')
+            sb.append("  kotlin > %9d  ".format(diffAt)).append(kDiff ?: "<end of kotlin trace>").append('\n')
+            for ((k, l) in kAfter.withIndex()) sb.append("  kotlin   %9d  ".format(diffAt + 1 + k)).append(l).append('\n')
         }
-        // Keep only the actual trace up to shortly after the divergence (disk space).
+        // Only the context report goes to disk (a few KB), never the trace itself.
         File(outDir, config).mkdirs()
-        val keep = if (first == null) actual.size else minOf(actual.size, first + 200)
-        File(File(outDir, config), "$name.trace").writeText(actual.subList(0, keep).joinToString("\n", postfix = "\n"))
-        val level = if (error != null) "CRASH" else "DIFF@${first?.plus(1) ?: "-"}"
-        return Outcome(name, config, level, millis, actual.size, sb.toString())
+        File(File(outDir, config), "$name.diff.txt").writeText(sb.toString())
+        val level = if (error != null) "CRASH" else if (diffAt >= 0) "DIFF@$diffAt" else "FAIL"
+        return Outcome(name, config, level, millis, lineNo, sb.toString())
     }
 
     @Test
@@ -167,7 +202,7 @@ class FullShadowTraceTest {
         }
         if (ran == 0) fail("$TAG no instance selected (filters only=$only configs=$configs)")
 
-        println("$TAG summary (mismatching traces in $outDir):")
+        println("$TAG summary (mismatch reports in $outDir):")
         println("  %-8s %-20s %-10s %9s %9s".format("config", "instance", "level", "ms", "lines"))
         for (o in outcomes) println("  %-8s %-20s %-10s %9d %9d".format(o.config, o.name, o.level, o.millis, o.lines))
         val bad = outcomes.filter { it.level != "L1" }
@@ -180,6 +215,7 @@ class FullShadowTraceTest {
         const val REGEN = "ksat-extra/shadow/cadical-full/build_and_trace.sh"
         val CONFIGS = listOf("plain", "default")
         const val TIMEOUT_SECONDS = 240L
+        const val CONTEXT = 5
 
         fun skip(reason: String, steps: String): Nothing {
             val msg = "$TAG SKIPPED: $reason. These are optional trace-comparison tests (ksat-extra); " +
