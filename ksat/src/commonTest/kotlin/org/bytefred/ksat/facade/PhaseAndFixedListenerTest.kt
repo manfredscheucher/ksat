@@ -127,12 +127,13 @@ class PhaseAndFixedListenerTest {
 
     @Test
     fun phaseRejectsInvalidLiteral() {
-        // solver.cpp REQUIRE_VALID_LIT
+        // solver.cpp phase / unphase: REQUIRE_VALID_LIT (lit). The port's REQUIRE
+        // (contract.hpp CONTRACT_VIOLATED -> contractRequire) throws IllegalStateException.
         val k = Ksat(solver, numVars = 2)
-        assertFailsWith<IllegalArgumentException>("$solver: phase(0)") { k.phase(0) }
-        assertFailsWith<IllegalArgumentException>("$solver: unphase(0)") { k.unphase(0) }
-        assertFailsWith<IllegalArgumentException>("$solver: phase(INT_MIN)") { k.phase(Int.MIN_VALUE) }
-        assertFailsWith<IllegalArgumentException>("$solver: unphase(INT_MIN)") { k.unphase(Int.MIN_VALUE) }
+        assertFailsWith<IllegalStateException>("$solver: phase(0)") { k.phase(0) }
+        assertFailsWith<IllegalStateException>("$solver: unphase(0)") { k.unphase(0) }
+        assertFailsWith<IllegalStateException>("$solver: phase(INT_MIN)") { k.phase(Int.MIN_VALUE) }
+        assertFailsWith<IllegalStateException>("$solver: unphase(INT_MIN)") { k.unphase(Int.MIN_VALUE) }
     }
 
     // ------------------------------------------------------------------ fixed listener
@@ -345,13 +346,14 @@ class PhaseAndFixedListenerTest {
     @Test
     fun fixedListenerCannotBeChangedFromPropagatorCallback() {
         // solver.cpp: connect/disconnect_fixed_listener REQUIRE_VALID_STATE, i.e. not while solving.
+        // The port's REQUIRE (contract.hpp CONTRACT_VIOLATED -> contractRequire) throws IllegalStateException.
         val k = Ksat(solver, numVars = 2)
         val p = ScriptedPropagator()
         var connectThrew = false
         var disconnectThrew = false
         p.onCallback = {
-            try { k.connectFixedListener(Recorder()) } catch (e: IllegalArgumentException) { connectThrew = true }
-            try { k.disconnectFixedListener() } catch (e: IllegalArgumentException) { disconnectThrew = true }
+            try { k.connectFixedListener(Recorder()) } catch (e: IllegalStateException) { connectThrew = true }
+            try { k.disconnectFixedListener() } catch (e: IllegalStateException) { disconnectThrew = true }
         }
         k.connectExternalPropagator(p)
         k.addObservedVar(1)
