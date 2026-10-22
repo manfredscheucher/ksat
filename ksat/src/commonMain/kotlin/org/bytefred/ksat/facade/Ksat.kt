@@ -1,5 +1,6 @@
 package org.bytefred.ksat.facade
 
+import org.bytefred.ksat.Copying
 import org.bytefred.ksat.ExternalPropagation
 import org.bytefred.ksat.ExternalPropagator
 import org.bytefred.ksat.FixedAssignmentListener
@@ -34,17 +35,20 @@ enum class Solver { MICROSAT, MINISAT, CADICAL, KISSAT }
  * `numVars` is a capacity hint (as in the underlying ports): variables are created
  * lazily as clauses reference them.
  */
-class Ksat(
+class Ksat private constructor(
     val solver: Solver,
-    numVars: Int,
-) : SatSolver, ExternalPropagation, FixedListening, ForcedPhases {
+    private val delegate: SatSolver,
+) : SatSolver, ExternalPropagation, FixedListening, ForcedPhases, Copying {
 
-    private val delegate: SatSolver = when (solver) {
-        Solver.MICROSAT -> MicroSat(numVars)
-        Solver.MINISAT -> MiniSat(numVars)
-        Solver.CADICAL -> CaDiCaLFull(numVars)
-        Solver.KISSAT -> Kissat(numVars)
-    }
+    constructor(solver: Solver, numVars: Int) : this(
+        solver,
+        when (solver) {
+            Solver.MICROSAT -> MicroSat(numVars)
+            Solver.MINISAT -> MiniSat(numVars)
+            Solver.CADICAL -> CaDiCaLFull(numVars)
+            Solver.KISSAT -> Kissat(numVars)
+        },
+    )
 
     override val numVars: Int get() = delegate.numVars
 
@@ -91,4 +95,13 @@ class Ksat(
 
     override fun phase(lit: Int) = phaseHost().phase(lit)
     override fun unphase(lit: Int) = phaseHost().unphase(lit)
+
+    // ---- copy (only CaDiCaL: upstream Solver::copy, no learned clauses) ----
+
+    /** A fresh, independent [Ksat] over the same formula on the same [solver]; see [Copying]. */
+    override fun copy(): Ksat {
+        val host = delegate as? Copying
+            ?: throw UnsupportedOperationException("solver $solver does not support copy")
+        return Ksat(solver, host.copy())
+    }
 }
