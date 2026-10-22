@@ -90,7 +90,7 @@ class CopyTest {
 
     @Test
     fun onlyCadicalSupportsCopy() {
-        for (s in listOf(Solver.MICROSAT, Solver.MINISAT, Solver.KISSAT)) {
+        for (s in listOf(Solver.MICROSAT, Solver.MINISAT, Solver.MINISAT_SIMP, Solver.KISSAT)) {
             val k = Ksat(s, 2).also { it.addClause(intArrayOf(1, 2)) }
             assertFailsWith<UnsupportedOperationException>("solver $s") { k.copy() }
         }

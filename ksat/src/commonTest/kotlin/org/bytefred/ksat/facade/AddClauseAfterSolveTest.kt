@@ -18,6 +18,10 @@ class AddClauseAfterSolveTest {
 
     private val solvers = listOf(Solver.MINISAT, Solver.CADICAL, Solver.KISSAT)
 
+    // MINISAT_SIMP only where no clause is added after the first solve (that solve may eliminate
+    // the variables a later clause would use; see Solver.MINISAT_SIMP).
+    private val solversResolveOnly = solvers + Solver.MINISAT_SIMP
+
     private val xor = listOf(intArrayOf(1, 2), intArrayOf(-1, -2))
 
     private fun modelsByBlocking(s: Solver): Int {
@@ -99,7 +103,7 @@ class AddClauseAfterSolveTest {
     @Test
     fun plainResolveWithoutAddingIsStable() {
         // calling solve() twice with NO clause added must give the same verdict + a valid model
-        for (s in solvers) {
+        for (s in solversResolveOnly) {
             val k = Ksat(s, numVars = 3)
             for (c in tri) k.addClause(c)
             val r1 = k.solve()

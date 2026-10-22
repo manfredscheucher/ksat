@@ -25,7 +25,8 @@ import org.bytefred.ksat.SatResult
  *    clauses. Correct for ALL solvers; O(models²) in added clauses — fine for modest counts.
  *  - `true`: keep ONE solver and add each blocking clause to it (O(models), keeps learned
  *    clauses). Needs add-clause-after-solve, which MINISAT, CADICAL and KISSAT support;
- *    `incremental = true` with [Solver.MICROSAT] throws.
+ *    `incremental = true` with [Solver.MICROSAT] throws, and so does [Solver.MINISAT_SIMP]
+ *    (a blocking clause names every variable, also those the first solve eliminated).
  */
 fun enumerateModels(
     solver: Solver,
@@ -36,6 +37,10 @@ fun enumerateModels(
 ): Sequence<List<Boolean>> {
     require(!(incremental && solver == Solver.MICROSAT)) {
         "incremental enumeration is not supported for MICROSAT; use incremental = false"
+    }
+    require(!(incremental && solver == Solver.MINISAT_SIMP)) {
+        "incremental enumeration is not supported for MINISAT_SIMP (blocking clauses would use " +
+            "variables eliminated by the first solve); use incremental = false or MINISAT"
     }
     return if (incremental) incrementalModels(solver, numVars, cnf, assumptions)
     else freshSolverModels(solver, numVars, cnf, assumptions)

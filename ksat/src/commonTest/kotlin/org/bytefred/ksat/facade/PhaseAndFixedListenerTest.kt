@@ -368,7 +368,7 @@ class PhaseAndFixedListenerTest {
 
     @Test
     fun otherSolversRejectPhaseAndFixedListener() {
-        for (other in listOf(Solver.MINISAT, Solver.KISSAT, Solver.MICROSAT)) {
+        for (other in listOf(Solver.MINISAT, Solver.MINISAT_SIMP, Solver.KISSAT, Solver.MICROSAT)) {
             val k = Ksat(other, numVars = 2)
             assertFailsWith<UnsupportedOperationException>("$other: phase") { k.phase(1) }
             assertFailsWith<UnsupportedOperationException>("$other: unphase") { k.unphase(1) }

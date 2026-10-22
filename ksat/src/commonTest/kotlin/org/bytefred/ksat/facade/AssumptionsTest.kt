@@ -17,7 +17,11 @@ class AssumptionsTest {
     // Solvers whose assumptions path is ported. kissat is added here once done (Task #4);
     // until then it throws on non-empty assumptions by the interface default, and listing
     // it here would be a visible failure rather than a silent skip.
-    private val solversWithAssumptions = listOf(Solver.MINISAT, Solver.CADICAL, Solver.KISSAT)
+    private val solversWithAssumptions = listOf(Solver.MINISAT, Solver.MINISAT_SIMP, Solver.CADICAL, Solver.KISSAT)
+
+    // MINISAT_SIMP eliminates variables on its first solve (upstream SimpSolver::solve with
+    // turn_off_simp), so a later assumption on another variable is outside its contract.
+    private val solversReusable = solversWithAssumptions - Solver.MINISAT_SIMP
 
     // A small satisfiable CNF over 3 vars with more than one model:
     //   (x1 OR x2 OR x3) AND (NOT x1 OR x2)
@@ -69,7 +73,7 @@ class AssumptionsTest {
     fun sameInstanceReusableAcrossAssumptions() {
         // The caller keeps ONE solver and queries many assumptions on it. Each query must
         // give the same verdict as a fresh solver would — i.e. no state leaks between solves.
-        for (s in solversWithAssumptions) {
+        for (s in solversReusable) {
             val reused = fresh(s)
             for (assumption in intArrayOf(1, -1, 2, -2, 3, -3, 1, 3)) {
                 val got = reused.solve(intArrayOf(assumption))

@@ -299,7 +299,7 @@ class ExternalPropagatorTest {
 
     @Test
     fun otherSolversRejectExternalPropagators() {
-        for (solver in listOf(Solver.MINISAT, Solver.KISSAT, Solver.MICROSAT)) {
+        for (solver in listOf(Solver.MINISAT, Solver.MINISAT_SIMP, Solver.KISSAT, Solver.MICROSAT)) {
             val k = Ksat(solver, numVars = 2)
             assertFailsWith<UnsupportedOperationException>("$solver must not accept an external propagator") {
                 k.connectExternalPropagator(ClausePropagator(emptyList(), eager = false))

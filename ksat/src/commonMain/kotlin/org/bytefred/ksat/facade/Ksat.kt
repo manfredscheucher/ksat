@@ -12,9 +12,20 @@ import org.bytefred.ksat.cadical.CaDiCaLFull
 import org.bytefred.ksat.kissat.Kissat
 import org.bytefred.ksat.microsat.MicroSat
 import org.bytefred.ksat.minisat.MiniSat
+import org.bytefred.ksat.minisat.MiniSatSimp
 
-/** The ported solvers you can pick between. */
-enum class Solver { MICROSAT, MINISAT, CADICAL, KISSAT }
+/**
+ * The ported solvers you can pick between.
+ *
+ * [MINISAT] is MiniSat's core `Solver` (no preprocessing, fully incremental, like the IPASIR
+ * wrappers of MiniSat). [MINISAT_SIMP] is MiniSat's `SimpSolver` (subsumption, bounded variable
+ * elimination, model reconstruction), used as upstream `SimpSolver::solve(assumps, do_simp = true,
+ * turn_off_simp = true)`: the first solve eliminates variables (its assumption variables are
+ * frozen), later solves run the plain search. A variable eliminated by the first solve must not
+ * appear in a later clause or assumption (that fails loudly), so incremental use (adding clauses
+ * after a solve, or assumptions on other variables) needs [MINISAT].
+ */
+enum class Solver { MICROSAT, MINISAT, MINISAT_SIMP, CADICAL, KISSAT }
 
 /**
  * One uniform entry point over the ported SAT solvers, in the spirit of PySAT: the
@@ -45,6 +56,7 @@ class Ksat private constructor(
         when (solver) {
             Solver.MICROSAT -> MicroSat(numVars)
             Solver.MINISAT -> MiniSat(numVars)
+            Solver.MINISAT_SIMP -> MiniSatSimp(numVars)
             Solver.CADICAL -> CaDiCaLFull(numVars)
             Solver.KISSAT -> Kissat(numVars)
         },

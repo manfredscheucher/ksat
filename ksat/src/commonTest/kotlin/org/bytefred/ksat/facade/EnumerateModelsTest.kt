@@ -10,7 +10,7 @@ import kotlin.test.assertFailsWith
  */
 class EnumerateModelsTest {
 
-    private val allSolvers = listOf(Solver.MICROSAT, Solver.MINISAT, Solver.CADICAL, Solver.KISSAT)
+    private val allSolvers = listOf(Solver.MICROSAT, Solver.MINISAT, Solver.MINISAT_SIMP, Solver.CADICAL, Solver.KISSAT)
 
     // XOR(x1, x2)
     private val xor = listOf(intArrayOf(1, 2), intArrayOf(-1, -2))
@@ -45,10 +45,18 @@ class EnumerateModelsTest {
     }
 
     @Test
+    fun incrementalThrowsForMinisatSimp() {
+        assertFailsWith<IllegalArgumentException>("incremental must throw for MINISAT_SIMP") {
+            enumerateModels(Solver.MINISAT_SIMP, numVars = 2, cnf = xor, incremental = true)
+        }
+    }
+
+    @Test
     fun enumeratesUnderAssumptions() {
         // assume x1 = true -> only the {x1, -x2} model remains
-        for (s in listOf(Solver.MINISAT, Solver.CADICAL, Solver.KISSAT)) {
+        for (s in listOf(Solver.MINISAT, Solver.MINISAT_SIMP, Solver.CADICAL, Solver.KISSAT)) {
             for (incremental in listOf(false, true)) {
+                if (incremental && s == Solver.MINISAT_SIMP) continue   // see incrementalThrowsForMinisatSimp
                 val models = enumerateModels(s, numVars = 2, cnf = xor, assumptions = intArrayOf(1), incremental = incremental)
                     .take(8).toList()
                 assertEquals(listOf(listOf(true, false)), models, "$s (incremental=$incremental): assuming x1 leaves exactly one model")

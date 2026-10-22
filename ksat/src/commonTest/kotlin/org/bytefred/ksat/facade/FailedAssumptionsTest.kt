@@ -10,7 +10,8 @@ import kotlin.test.assertTrue
 /**
  * IPASIR failed-assumption core: after UNSAT under assumptions, failed(lit) reports whether a
  * signed DIMACS assumption was part of the core (jointly inconsistent subset). Ported 1:1 from
- * CaDiCaL's failing() (assume.cpp) and MiniSat's analyzeFinal (Solver.cc). kissat has no upstream
+ * CaDiCaL's failing() (assume.cpp) and MiniSat's analyzeFinal (Solver.cc; also through MINISAT_SIMP,
+ * whose re-solves here only assume variables its first solve froze during elimination). kissat has no upstream
  * failed-core API and microsat no assumptions, so they are not covered here.
  *
  * The assertTrue checks are what every valid core must contain. The assertFalse checks are not
@@ -21,7 +22,7 @@ import kotlin.test.assertTrue
  */
 class FailedAssumptionsTest {
 
-    private val solvers = listOf(Solver.CADICAL, Solver.MINISAT)
+    private val solvers = listOf(Solver.CADICAL, Solver.MINISAT, Solver.MINISAT_SIMP)
 
     /** Re-solve under only the assumptions reported as failed: must still be UNSAT. */
     private fun assertCoreRefutes(k: Ksat, solver: Solver, assumptions: IntArray) {

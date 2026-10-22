@@ -53,7 +53,7 @@ private fun timeSolve(cnf: DimacsCnf): Pair<SatResult, Double> {
     val times = DoubleArray(RUNS)
     var result = SatResult.UNSAT
     repeat(WARMUP + RUNS) { i ->
-        val s = MiniSat(cnf.numVars, ActivityPrecision.FLOAT64)
+        val s = MiniSat(cnf.numVars)
         for (cl in cnf.clauses) s.addClause(cl)
         val mark = TimeSource.Monotonic.markNow()
         result = s.solve()
