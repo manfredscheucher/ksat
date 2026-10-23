@@ -7,11 +7,12 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
- * Target-independent sanity + L3 tests for the Kotlin [CaDiCaL] (core) port. These run on
- * all targets (no file access, no C reference needed): they pin the SAT/UNSAT verdict for a
- * set of instances with known answers and, on SAT, check the returned model satisfies the
- * CNF. The full step-by-step trace shadow against the C CaDiCaL core lives in the JVM-only
- * ShadowTraceFilesTest, which reads the golden traces produced by cadical_trace.cc.
+ * Target-independent sanity + L3 tests for the Kotlin [CaDiCaL] port (the ksat-common adapter
+ * over the full CaDiCaL 2.1.3 port). These run on all targets (no file access, no C reference
+ * needed): they pin the SAT/UNSAT verdict for a set of instances with known answers and, on
+ * SAT, check the returned model satisfies the CNF. The step-by-step trace shadow against the
+ * instrumented upstream reference lives in the JVM-only tests in package `full`
+ * (FullShadowTraceTest, FullLiveShadowTest, FullProofTest).
  */
 class CaDiCaLSanityTest {
 

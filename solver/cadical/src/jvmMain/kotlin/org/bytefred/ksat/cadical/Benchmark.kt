@@ -6,15 +6,15 @@ import java.io.File
 import kotlin.system.measureNanoTime
 
 /**
- * Runtime benchmark for the Kotlin [CaDiCaL] (core) port (JVM).
+ * Runtime benchmark for the Kotlin [CaDiCaL] port (JVM, upstream default options).
  *
  * Solves each CNF passed on the command line (or, with no args, every CNF under
  * `shadow/cnf/` found by walking up from the working dir) and prints one line per
  * instance with the verdict and the median solve time over a few timed runs after
  * warm-up (the JVM JIT needs warming before numbers mean anything).
  *
- * The companion script `shadow/tools/benchmark_cadical.sh` builds the C reference
- * (`c++ -O2 -std=c++17 cadical_trace.cc`), times it on the SAME CNFs, and prints a
+ * The companion script `shadow/tools/benchmark_cadical.sh` builds the upstream C++
+ * reference (`shadow/cadical-full`, run without LSTRACE), times it on the SAME CNFs, and prints a
  * side-by-side table so we can confirm the port is within a small constant factor of
  * C. No perf claims without these measured numbers.
  *
@@ -38,7 +38,7 @@ object Benchmark {
             cnfDir.listFiles { f -> f.name.endsWith(".cnf") }?.sortedBy { it.name } ?: emptyList()
         }
 
-        println("# Kotlin CaDiCaL (core) benchmark (solve-only, median of $RUNS runs, $WARMUP warm-up)")
+        println("# Kotlin CaDiCaL benchmark (solve-only, median of $RUNS runs, $WARMUP warm-up)")
         println("%-26s %-6s %12s".format("cnf", "result", "solve_ms"))
         for (f in files) {
             if (!f.isFile) {

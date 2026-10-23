@@ -3,7 +3,8 @@
 # instances (php_9_8, php_10_9) included in the byte-for-byte comparison, and find the
 # minimum test-fork heap each solver needs (they read the whole golden trace via readLines).
 #
-# BENCHMARK_ONLY must be empty in the four ShadowTraceFilesTest.kt for this run.
+# BENCHMARK_ONLY must be empty in the three ShadowTraceFilesTest.kt for this run (cadical runs
+# the full-port suites FullShadowTraceTest/FullLiveShadowTest, which stream their traces).
 # The heap that matters is the TEST FORK's -> injected via maxHeapSize in an init script.
 # configuration-cache is disabled so the init script reliably applies.
 cd "$(cd "$(dirname "$0")/.." && pwd)"

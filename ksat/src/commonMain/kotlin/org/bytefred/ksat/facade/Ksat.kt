@@ -8,7 +8,7 @@ import org.bytefred.ksat.FixedListening
 import org.bytefred.ksat.ForcedPhases
 import org.bytefred.ksat.SatResult
 import org.bytefred.ksat.SatSolver
-import org.bytefred.ksat.cadical.CaDiCaLFull
+import org.bytefred.ksat.cadical.CaDiCaL
 import org.bytefred.ksat.kissat.Kissat
 import org.bytefred.ksat.microsat.MicroSat
 import org.bytefred.ksat.minisat.MiniSat
@@ -57,7 +57,7 @@ class Ksat private constructor(
             Solver.MICROSAT -> MicroSat(numVars)
             Solver.MINISAT -> MiniSat(numVars)
             Solver.MINISAT_SIMP -> MiniSatSimp(numVars)
-            Solver.CADICAL -> CaDiCaLFull(numVars)
+            Solver.CADICAL -> CaDiCaL(numVars)
             Solver.KISSAT -> Kissat(numVars)
         },
     )

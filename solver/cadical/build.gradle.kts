@@ -56,9 +56,9 @@ kotlin {
     }
 }
 
-// The shadow trace test compares the largest benchmark instance php_10_9 byte-for-byte
-// only when -Dbigtrace is set (its golden trace is up to 156 MB / 8.6M lines). Propagate
-// that flag to the test JVM and give it an 8 GB heap so readLines() of that trace fits.
+// The full-port shadow tests (FullShadowTraceTest, FullLiveShadowTest) include the largest
+// benchmark instance php_10_9 only when -Dbigtrace is set (millions of trace lines).
+// Propagate that flag to the test JVM and give it an 8 GB heap.
 //   ./gradlew :cadical:jvmTest -Dbigtrace
 tasks.withType<org.jetbrains.kotlin.gradle.targets.jvm.tasks.KotlinJvmTest>().configureEach {
     // Show skipped/failed tests in a normal run: the optional shadow trace tests (ksat-extra)
