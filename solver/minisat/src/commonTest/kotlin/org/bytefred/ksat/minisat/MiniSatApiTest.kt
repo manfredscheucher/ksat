@@ -188,6 +188,27 @@ class MiniSatApiTest {
         assertTrue(s.solve(IntVec(), false, false))
     }
 
+    /**
+     * BUG FIX 4 (minisat-full-port.md): with master's order (substituted clause added while the
+     * original is still there) and rcheck, upstream drops the substituted clause as implied and
+     * then deletes the original, which turns this UNSAT formula SAT. x1 <-> x2, (x1 | x3), and
+     * x2, x3 both forced false.
+     */
+    @Test
+    fun substituteWithRcheckKeepsUnsatInBothOrders() {
+        for (csb in listOf(false, true)) {
+            val s = MiniSatSimp()
+            s.csbCompat = csb
+            repeat(5) { s.newVar() }
+            for (c in listOf(intArrayOf(1, 3), intArrayOf(-1, 2), intArrayOf(1, -2), intArrayOf(-2, -3),
+                intArrayOf(-2, 4), intArrayOf(-2, -4), intArrayOf(-3, 5), intArrayOf(-3, -5)))
+                s.addClause(vec(*c))
+            s.useRcheck = true
+            s.substitute(0, lit(2))                   // x1 := x2
+            assertFalse(s.solve(IntVec(), false, false), "csbCompat=$csb: UNSAT formula answered SAT")
+        }
+    }
+
     @Test
     fun toDimacsWritesTheReducedFormula() {
         val s = MiniSat()
