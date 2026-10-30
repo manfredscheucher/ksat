@@ -24,9 +24,13 @@ import org.bytefred.ksat.SatResult
  *  - `false` (default): a FRESH solver each round replaying the CNF + all prior blocking
  *    clauses. Correct for ALL solvers; O(models²) in added clauses — fine for modest counts.
  *  - `true`: keep ONE solver and add each blocking clause to it (O(models), keeps learned
- *    clauses). Needs add-clause-after-solve, which MINISAT, CADICAL and KISSAT support;
- *    `incremental = true` with [Solver.MICROSAT] throws, and so does [Solver.MINISAT_SIMP]
- *    (a blocking clause names every variable, also those the first solve eliminated).
+ *    clauses). Needs add-clause-after-solve, which MINISAT with option `pre` = 0, CADICAL and
+ *    KISSAT support; `incremental = true` with [Solver.MICROSAT] throws, and so does
+ *    [Solver.MINISAT] with `pre` = 1, the default (a blocking clause names every variable, also
+ *    those the first solve eliminated).
+ *
+ * [options] are the solver's upstream options, as in [Ksat]; every solver of the enumeration gets
+ * them.
  */
 fun enumerateModels(
     solver: Solver,
@@ -34,16 +38,18 @@ fun enumerateModels(
     cnf: List<IntArray>,
     assumptions: IntArray = IntArray(0),
     incremental: Boolean = false,
+    options: Map<String, Number> = emptyMap(),
 ): Sequence<List<Boolean>> {
+    val checked = checkedOptions(solver, options)   // eagerly, like the checks below
     require(!(incremental && solver == Solver.MICROSAT)) {
         "incremental enumeration is not supported for MICROSAT; use incremental = false"
     }
-    require(!(incremental && solver == Solver.MINISAT_SIMP)) {
-        "incremental enumeration is not supported for MINISAT_SIMP (blocking clauses would use " +
-            "variables eliminated by the first solve); use incremental = false or MINISAT"
+    require(!(incremental && solver == Solver.MINISAT && miniSatPre(checked))) {
+        "incremental enumeration is not supported for MINISAT with pre=1, the default (blocking " +
+            "clauses would use variables eliminated by the first solve); use incremental = false or pre=0"
     }
-    return if (incremental) incrementalModels(solver, numVars, cnf, assumptions)
-    else freshSolverModels(solver, numVars, cnf, assumptions)
+    return if (incremental) incrementalModels(solver, numVars, cnf, assumptions, options)
+    else freshSolverModels(solver, numVars, cnf, assumptions, options)
 }
 
 /** Fresh solver per round: CNF + all prior blocks replayed. Correct for every solver. */
@@ -52,10 +58,11 @@ private fun freshSolverModels(
     numVars: Int,
     cnf: List<IntArray>,
     assumptions: IntArray,
+    options: Map<String, Number>,
 ): Sequence<List<Boolean>> = sequence {
     val blocks = ArrayList<IntArray>()
     while (true) {
-        val k = Ksat(solver, numVars = numVars)
+        val k = Ksat(solver, numVars = numVars, options = options)
         for (c in cnf) k.addClause(c)
         for (b in blocks) k.addClause(b)
         if (k.solve(assumptions) != SatResult.SAT) break
@@ -71,8 +78,9 @@ private fun incrementalModels(
     numVars: Int,
     cnf: List<IntArray>,
     assumptions: IntArray,
+    options: Map<String, Number>,
 ): Sequence<List<Boolean>> = sequence {
-    val k = Ksat(solver, numVars = numVars)
+    val k = Ksat(solver, numVars = numVars, options = options)
     for (c in cnf) k.addClause(c)
     while (true) {
         if (k.solve(assumptions) != SatResult.SAT) break

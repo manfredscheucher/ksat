@@ -12,13 +12,13 @@ import kotlin.test.assertTrue
  */
 class KsatFacadeTest {
 
-    private val allSolvers = Solver.entries
+    private val allSolvers = ALL_CONFIGS
 
     @Test
     fun satInstanceAgreesAcrossSolvers() {
         // (x1 OR x2) AND (NOT x1) -> SAT, forces x2 = true.
         for (s in allSolvers) {
-            val k = Ksat(s, numVars = 2)
+            val k = s.ksat(numVars = 2)
             k.addClause(intArrayOf(1, 2))
             k.addClause(intArrayOf(-1))
             assertEquals(SatResult.SAT, k.solve(), "solver $s should report SAT")
@@ -30,7 +30,7 @@ class KsatFacadeTest {
     fun unsatInstanceAgreesAcrossSolvers() {
         // (x1) AND (NOT x1) -> UNSAT.
         for (s in allSolvers) {
-            val k = Ksat(s, numVars = 1)
+            val k = s.ksat(numVars = 1)
             k.addClause(intArrayOf(1))
             k.addClause(intArrayOf(-1))
             assertEquals(SatResult.UNSAT, k.solve(), "solver $s should report UNSAT")

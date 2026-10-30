@@ -16,16 +16,16 @@ import kotlin.test.assertEquals
  */
 class AddClauseAfterSolveTest {
 
-    private val solvers = listOf(Solver.MINISAT, Solver.CADICAL, Solver.KISSAT)
+    private val solvers = listOf(MINISAT_CORE, CADICAL, KISSAT)
 
-    // MINISAT_SIMP only where no clause is added after the first solve (that solve may eliminate
-    // the variables a later clause would use; see Solver.MINISAT_SIMP).
-    private val solversResolveOnly = solvers + Solver.MINISAT_SIMP
+    // MiniSat with pre=1 only where no clause is added after the first solve (that solve may
+    // eliminate the variables a later clause would use; see Solver.MINISAT).
+    private val solversResolveOnly = solvers + MINISAT_PRE
 
     private val xor = listOf(intArrayOf(1, 2), intArrayOf(-1, -2))
 
-    private fun modelsByBlocking(s: Solver): Int {
-        val k = Ksat(s, numVars = 2)
+    private fun modelsByBlocking(s: SolverConfig): Int {
+        val k = s.ksat(numVars = 2)
         for (c in xor) k.addClause(c)
         val seen = HashSet<List<Boolean>>()
         var rounds = 0
@@ -56,8 +56,8 @@ class AddClauseAfterSolveTest {
         listOf(false, false, true), listOf(true, false, true),
     )
 
-    private fun enumerateModelSet(s: Solver, nVars: Int, cnf: List<IntArray>): List<List<Boolean>> {
-        val k = Ksat(s, numVars = nVars)
+    private fun enumerateModelSet(s: SolverConfig, nVars: Int, cnf: List<IntArray>): List<List<Boolean>> {
+        val k = s.ksat(numVars = nVars)
         for (c in cnf) k.addClause(c)
         val models = ArrayList<List<Boolean>>()
         while (k.solve() == SatResult.SAT) {
@@ -85,7 +85,7 @@ class AddClauseAfterSolveTest {
         //   (x1 OR x2) AND (x1 OR x3) is SAT; after solve, force x1=false via the unit (-1):
         //   then x2 and x3 are both forced true.
         for (s in solvers) {
-            val k = Ksat(s, numVars = 3)
+            val k = s.ksat(numVars = 3)
             k.addClause(intArrayOf(1, 2))
             k.addClause(intArrayOf(1, 3))
             assertEquals(SatResult.SAT, k.solve(), "solver $s: first solve")
@@ -104,7 +104,7 @@ class AddClauseAfterSolveTest {
     fun plainResolveWithoutAddingIsStable() {
         // calling solve() twice with NO clause added must give the same verdict + a valid model
         for (s in solversResolveOnly) {
-            val k = Ksat(s, numVars = 3)
+            val k = s.ksat(numVars = 3)
             for (c in tri) k.addClause(c)
             val r1 = k.solve()
             assertEquals(SatResult.SAT, r1, "solver $s: first solve")

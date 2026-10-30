@@ -17,11 +17,11 @@ class AssumptionsTest {
     // Solvers whose assumptions path is ported. kissat is added here once done (Task #4);
     // until then it throws on non-empty assumptions by the interface default, and listing
     // it here would be a visible failure rather than a silent skip.
-    private val solversWithAssumptions = listOf(Solver.MINISAT, Solver.MINISAT_SIMP, Solver.CADICAL, Solver.KISSAT)
+    private val solversWithAssumptions = listOf(MINISAT_CORE, MINISAT_PRE, CADICAL, KISSAT)
 
-    // MINISAT_SIMP eliminates variables on its first solve (upstream SimpSolver::solve with
+    // MiniSat with pre=1 eliminates variables on its first solve (upstream SimpSolver::solve with
     // turn_off_simp), so a later assumption on another variable is outside its contract.
-    private val solversReusable = solversWithAssumptions - Solver.MINISAT_SIMP
+    private val solversReusable = solversWithAssumptions - MINISAT_PRE
 
     // A small satisfiable CNF over 3 vars with more than one model:
     //   (x1 OR x2 OR x3) AND (NOT x1 OR x2)
@@ -30,15 +30,15 @@ class AssumptionsTest {
         intArrayOf(-1, 2),
     )
 
-    private fun fresh(s: Solver): Ksat {
-        val k = Ksat(s, numVars = 3)
+    private fun fresh(s: SolverConfig): Ksat {
+        val k = s.ksat(numVars = 3)
         for (c in clauses) k.addClause(c)
         return k
     }
 
     /** Reference: same CNF plus the assumption as a unit clause, on a brand-new solver. */
-    private fun referenceVerdict(s: Solver, assumption: Int): SatResult {
-        val k = Ksat(s, numVars = 3)
+    private fun referenceVerdict(s: SolverConfig, assumption: Int): SatResult {
+        val k = s.ksat(numVars = 3)
         for (c in clauses) k.addClause(c)
         k.addClause(intArrayOf(assumption))
         return k.solve()

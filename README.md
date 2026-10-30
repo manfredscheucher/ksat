@@ -11,7 +11,7 @@ Each solver is also its own standalone repo (`microsat-kotlin`, `minisat-kotlin`
 ## Use a solver
 
 ```kotlin
-val s = Ksat(Solver.CADICAL, numVars = 3)   // or MICROSAT / MINISAT / MINISAT_SIMP / KISSAT
+val s = Ksat(Solver.CADICAL, numVars = 3)   // or MICROSAT / MINISAT / KISSAT
 s.addClause(intArrayOf(1, 2, 3))            // signed DIMACS literals: +v true, -v false
 s.addClause(intArrayOf(-1, 2))
 
@@ -26,10 +26,14 @@ and return the same answer, so switching is a one-word change. `solve(assumption
 literals for one solve and backtracks, so you can keep one solver and query it repeatedly
 (solve-under-assumptions, like IPASIR / PySAT). Package namespace `org.bytefred.ksat`.
 
-`MINISAT` is MiniSat's core solver; `MINISAT_SIMP` adds its preprocessor (subsumption, variable
-elimination, model reconstruction). The preprocessor runs once, on the first solve, and the
-variables it removes cannot be used afterwards, so for incremental use (clauses added after a
-solve, changing assumptions) take `MINISAT`.
+Solvers take their upstream options (names, defaults and ranges as upstream; `solverOptions(solver)`
+lists them): `Ksat(Solver.CADICAL, numVars = 3, options = mapOf("elim" to 0))`. Only what you pass
+is set. MicroSAT and kissat have none.
+
+`MINISAT` runs MiniSat's preprocessor by default (option `pre` = 1, as the upstream binary:
+subsumption, variable elimination, model reconstruction). The preprocessor runs once, on the first
+solve, and the variables it removes cannot be used afterwards, so for incremental use (clauses added
+after a solve, changing assumptions) pass `mapOf("pre" to 0)` for MiniSat's core solver.
 
 ## Build
 

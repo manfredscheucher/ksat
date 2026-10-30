@@ -15,7 +15,7 @@ import kotlin.test.assertEquals
  */
 class AssumptionsReuseStressTest {
 
-    private val solvers = listOf(Solver.MINISAT, Solver.CADICAL, Solver.KISSAT)
+    private val solvers = listOf(MINISAT_CORE, CADICAL, KISSAT)
 
     // CNF over 4 vars:
     //   (x1 OR x2) AND (-x1 OR x3) AND (-x1 OR -x3)
@@ -28,14 +28,14 @@ class AssumptionsReuseStressTest {
         intArrayOf(-1, -3),
     )
 
-    private fun build(s: Solver): Ksat {
-        val k = Ksat(s, numVars = 4)
+    private fun build(s: SolverConfig): Ksat {
+        val k = s.ksat(numVars = 4)
         for (c in clauses) k.addClause(c)
         return k
     }
 
-    private fun reference(s: Solver, assumption: Int): SatResult {
-        val k = Ksat(s, numVars = 4)
+    private fun reference(s: SolverConfig, assumption: Int): SatResult {
+        val k = s.ksat(numVars = 4)
         for (c in clauses) k.addClause(c)
         k.addClause(intArrayOf(assumption))
         return k.solve()
@@ -60,13 +60,13 @@ class AssumptionsReuseStressTest {
         // already satisfied -> pseudo frame path. Follow with more assumptions to exercise
         // restart/reuse-trail over a pseudo frame.
         for (s in solvers) {
-            val k = Ksat(s, numVars = 4)
+            val k = s.ksat(numVars = 4)
             for (c in clauses) k.addClause(c)
             k.addClause(intArrayOf(4)) // x4 forced true at level 0
             for (a in intArrayOf(4, -1, 4, 2)) {
                 val got = k.solve(intArrayOf(4, a))
                 // reference: clauses + unit x4 + unit a
-                val ref = Ksat(s, numVars = 4)
+                val ref = s.ksat(numVars = 4)
                 for (c in clauses) ref.addClause(c)
                 ref.addClause(intArrayOf(4))
                 ref.addClause(intArrayOf(a))

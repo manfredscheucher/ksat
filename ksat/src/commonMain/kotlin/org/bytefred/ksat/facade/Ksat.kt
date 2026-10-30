@@ -8,24 +8,21 @@ import org.bytefred.ksat.FixedListening
 import org.bytefred.ksat.ForcedPhases
 import org.bytefred.ksat.SatResult
 import org.bytefred.ksat.SatSolver
-import org.bytefred.ksat.cadical.CaDiCaL
-import org.bytefred.ksat.kissat.Kissat
-import org.bytefred.ksat.microsat.MicroSat
-import org.bytefred.ksat.minisat.MiniSat
-import org.bytefred.ksat.minisat.MiniSatSimp
 
 /**
- * The ported solvers you can pick between.
+ * The ported solvers you can pick between. Their upstream options are passed to [Ksat] (see
+ * [solverOptions]).
  *
- * [MINISAT] is MiniSat's core `Solver` (no preprocessing, fully incremental, like the IPASIR
- * wrappers of MiniSat). [MINISAT_SIMP] is MiniSat's `SimpSolver` (subsumption, bounded variable
- * elimination, model reconstruction), used as upstream `SimpSolver::solve(assumps, do_simp = true,
- * turn_off_simp = true)`: the first solve eliminates variables (its assumption variables are
- * frozen), later solves run the plain search. A variable eliminated by the first solve must not
- * appear in a later clause or assumption (that fails loudly), so incremental use (adding clauses
- * after a solve, or assumptions on other variables) needs [MINISAT].
+ * [MINISAT] is MiniSat's `SimpSolver` by default (option `pre` = 1, as the upstream binary:
+ * subsumption, bounded variable elimination, model reconstruction), used as upstream
+ * `SimpSolver::solve(assumps, do_simp = true, turn_off_simp = true)`: the first solve eliminates
+ * variables (its assumption variables are frozen), later solves run the plain search. A variable
+ * eliminated by the first solve must not appear in a later clause or assumption (that fails
+ * loudly), so incremental use (adding clauses after a solve, or assumptions on other variables)
+ * needs `pre` = 0: MiniSat's core `Solver` (no preprocessing, fully incremental, like the IPASIR
+ * wrappers of MiniSat).
  */
-enum class Solver { MICROSAT, MINISAT, MINISAT_SIMP, CADICAL, KISSAT }
+enum class Solver { MICROSAT, MINISAT, CADICAL, KISSAT }
 
 /**
  * One uniform entry point over the ported SAT solvers, in the spirit of PySAT: the
@@ -45,22 +42,18 @@ enum class Solver { MICROSAT, MINISAT, MINISAT_SIMP, CADICAL, KISSAT }
  *
  * `numVars` is a capacity hint (as in the underlying ports): variables are created
  * lazily as clauses reference them.
+ *
+ * [options]: upstream option name -> value (see [solverOptions]), applied before any clause is
+ * added; an option not passed keeps the upstream default. An unknown name, a value the option does
+ * not take, and any option for [Solver.MICROSAT] / [Solver.KISSAT] throw [IllegalArgumentException].
  */
 class Ksat private constructor(
     val solver: Solver,
-    private val delegate: SatSolver,
+    internal val delegate: SatSolver,
 ) : SatSolver, ExternalPropagation, FixedListening, ForcedPhases, Copying {
 
-    constructor(solver: Solver, numVars: Int) : this(
-        solver,
-        when (solver) {
-            Solver.MICROSAT -> MicroSat(numVars)
-            Solver.MINISAT -> MiniSat(numVars)
-            Solver.MINISAT_SIMP -> MiniSatSimp(numVars)
-            Solver.CADICAL -> CaDiCaL(numVars)
-            Solver.KISSAT -> Kissat(numVars)
-        },
-    )
+    constructor(solver: Solver, numVars: Int, options: Map<String, Number> = emptyMap()) :
+        this(solver, newSolver(solver, numVars, options))
 
     override val numVars: Int get() = delegate.numVars
 
@@ -110,7 +103,10 @@ class Ksat private constructor(
 
     // ---- copy (only CaDiCaL: upstream Solver::copy, no learned clauses) ----
 
-    /** A fresh, independent [Ksat] over the same formula on the same [solver]; see [Copying]. */
+    /**
+     * A fresh, independent [Ksat] over the same formula on the same [solver]; see [Copying].
+     * Upstream `Solver::copy` also copies the options, so the copy runs with the same options.
+     */
     override fun copy(): Ksat {
         val host = delegate as? Copying
             ?: throw UnsupportedOperationException("solver $solver does not support copy")
