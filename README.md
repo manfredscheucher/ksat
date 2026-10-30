@@ -1,4 +1,4 @@
-# sat-solvers-kotlin
+# ksat
 
 [Kotlin Multiplatform](https://kotlinlang.org/docs/multiplatform.html) ports of four C/C++ SAT
 solvers — microSAT, MiniSat, CaDiCaL and kissat — behind one uniform `Ksat` interface. Plain
@@ -42,8 +42,8 @@ are git submodules, so clone recursively (a plain `git clone` leaves them empty 
 fails with `No matching variant of project :ksat-common`):
 
 ```bash
-git clone --recursive https://github.com/manfredscheucher/sat-solvers-kotlin.git
-cd sat-solvers-kotlin
+git clone --recursive https://github.com/manfredscheucher/ksat.git
+cd ksat
 ```
 
 Already cloned without `--recursive`? Pull the submodules in:

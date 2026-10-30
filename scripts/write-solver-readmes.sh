@@ -32,7 +32,7 @@ trace (same decisions, propagations and conflicts in the same order), not just o
 final SAT/UNSAT answer. That verification harness — the instrumented C reference, the
 test CNFs, the golden traces and the shadow tests — lives in the main repo, together with
 the benchmarks, the \`Ksat\` facade and the docs:
-**[sat-solvers-kotlin](https://github.com/manfredscheucher/sat-solvers-kotlin)**.
+**[ksat](https://github.com/manfredscheucher/ksat)**.
 
 This repo is just the solver source, so it can be reused on its own.
 
